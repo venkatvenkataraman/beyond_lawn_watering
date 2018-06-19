@@ -1,0 +1,12 @@
+LOCAL HOST
+
+mongoimport --db LawnWateringAdvisorDB --collection wateringzones --drop --jsonArray --file wateringZoneSeeds.json
+mongoimport --db LawnWateringAdvisorDB --collection citywateringrests --drop --file cityRestrSeeds.json
+
+HEROKU  /// INCOMPLETE ... Still baby steps 
+
+mongo ds153869.mlab.com:53869/heroku_dgrx8m2w.wateringzones -u heroku_dgrx8m2w -p pk6qsn8647v8b1nn471r9pobb wateringZoneSeeds.json
+
+mongo ds153869.mlab.com:53869/heroku_dgrx8m2w.wateringzones -u heroku_dgrx8m2w -p pk6qsn8647v8b1nn471r9pobb  --drop --jsonArray --file wateringZoneSeeds.json
+
+--collection wateringzones

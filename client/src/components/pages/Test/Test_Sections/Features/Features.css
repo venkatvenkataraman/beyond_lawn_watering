@@ -1,0 +1,46 @@
+.features {
+	padding: 45vh 0;
+	background-image: 
+		linear-gradient(
+			to right bottom, 
+			rgba(40, 180, 133, 0.8), 
+			rgba(0, 0, 0, 0.8)), 
+		url("./features_Background.jpg");
+	background-size: cover;
+	margin-top: -25vh;
+	backface-visibility: hidden;
+	-webkit-clip-path: polygon(0 0, 100% 0, 100% 90vh, 0 100%);
+	clip-path: polygon(0 20%, 100% 0, 100% 80%, 0 100%);
+}
+
+.features .row {
+	display: flex;
+	width: 100%;
+}
+
+.col-1-of-4 {
+	width: 20%;
+	margin: 0 2.5%;
+	display: inline-block;
+}
+
+.feature-box {
+	background-color: rgba(255, 255, 255, .7);
+	font-size: 1.5rem;
+	padding: 2rem 2.5rem;
+	text-align: center;
+	border-radius: 3px;
+	box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .15);
+	transition: transform .3s;
+}
+
+.feature-box__icon {
+	font-size: 6rem;
+	margin-bottom: .5rem;
+	display: inline-block;
+	color: #28b485;
+}
+
+.feature-box:hover {
+	transform: translateY(-1.5rem);
+}

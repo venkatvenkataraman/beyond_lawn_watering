@@ -1,0 +1,210 @@
+console.log("In controllers/generateRecoController.js");
+const moment = require('moment');
+const db = require("../models");
+const axios = require("axios");
+
+// Calculate nearest watering time
+// 1. Fetch details of city watering restrictions record
+// 2. Get currentday time
+// 2b. convert to regular day of the week.
+// 2c. compare the day with watering Day 1, 2, 3 and pick the nearest future.
+// 2c. Tentative watering time is "nearest" watering day + start1 time or start2 time
+// 3. Check if the current time is > both tentative start times (by converting them to epoch time)
+// 4. If it is less than 1, then start time is the 1st, if it's less than 2, then the
+// start time is the 2nd, if it is greater than both then pick the next nearest watering day
+
+//Global Variables
+const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+const curDate = new Date();
+const curDay = curDate.getDay();  // returns a # between 0-6
+const curFullYear = curDate.getFullYear();
+const curMonth = curDate.getMonth();
+const curDt = curDate.getDate();
+const curHours = curDate.getHours();
+const curMinutes = curDate.getMinutes();
+const nowDateTimeAsEpoch = new Date().getTime()/1000;
+//Form today's date with 0 hrs and 0 minutes
+const todayAtZeroTimeEpoch = new Date(curFullYear,curMonth, curDt, 0,0).getTime()/1000;
+const curDayName = weekdays[curDay];
+
+function dayIndex(dayName){
+      for (i=0; i<7; i++){
+        if (dayName === weekdays[i]) {return i}
+      }
+      {return -1}
+    }
+
+//Global Variable
+var tenDayPop;
+function getForecasted10DayPoP() {
+  // db.WeatherFC.find({},{_id:0, pop:1}, function (err, tenDayPop) {
+    db.WeatherFC.find({},{_id:0, pop:1}, function (err, result) {
+                                        if (err) {console.log ("Find Error", err)}
+                                        else {
+                                           console.log ("Ten Day Pop: ", result);
+                                           tenDayPop = result;
+                                           console.log ("The REAL Ten Day Pop: ", tenDayPop);
+                                        }
+                                        return tenDayPop;
+  });           
+}
+
+//Global Variable
+var cityWateringRestrictions;
+function getCityWateringRestrictions() {
+  // db.CityWateringRest.find({}, function (err, cityWateringRestrictions) {
+    db.CityWateringRest.find({}, function (err, result) {
+                                   if (err) {console.log ("Find Error", err)}
+                                   else {
+                                      console.log ("City Watering Restrictions: ", result);
+                                      cityWateringRestrictions = result;
+                                   }
+                                   return cityWateringRestrictions;
+  });           
+}
+  
+function goodChanceOfRainNext5days() {
+  // This function determines if watering is needed
+  // You may not need watering if the weather forecast says there is rain in the next 5 days
+  // with > 40% chance
+  const rainChances = tenDayPop.slice(0,5);  // rain chance % for next 5 days -- get from forecast DB ***
+  console.log("In goodChanceOfRainNext5days; rainChances = ", rainChances);
+  for (let i= 0; i < 5; i++) {
+    console.log("In generateRecoController.js/isWateringNeeded; JSON.parse(rainChances[i].pop) = ", JSON.parse(rainChances[i].pop));
+    if (JSON.parse(rainChances[i].pop) >= 40) {return false}
+  }
+  return (true);
+}
+
+//Global variable
+var inMemZone;
+// Compute zone watering needs based on some simple logic
+computeNextWaterDateTime = (zoneNumber,inMemZone) => {
+      var wDay1 = cityWateringRestrictions[0].wateringDay1, 
+          wDay2 = cityWateringRestrictions[0].wateringDay2, 
+          wDay3 = cityWateringRestrictions[0].wateringDay3,
+        startT1 = cityWateringRestrictions[0].wateringTimes1Start,
+          endT1 = cityWateringRestrictions[0].wateringTimes1End,
+        startT2 = cityWateringRestrictions[0].wateringTimes2Start,
+          endT2 = cityWateringRestrictions[0].wateringTimes2End;
+
+    const wDay1index =  dayIndex(wDay1); // index of wDay1 in weekdays
+    const wDay2index =  dayIndex(wDay2);  // compute likewise
+    const wDay3index =  dayIndex(wDay3);  // compute likewise
+    var nextWaterDateTimeEpoch, nextWaterDay;
+  // Look at the zone details in the zone table and determine if and when to water
+  // Ask watson for the image classification. If it says 'Healthy' then no watering is needed.
+  // If it says 'Sick' then watering is needed.  As for when to water, you look at the watering restrictions
+  // and decide the earliest time the zone can be watered.
+
+  console.log("In generateRecoController.js/computeNextWaterDateTime.");
+  console.log("Parameters coming into this function are zoneNumber: ", zoneNumber, " and inMemZone: ", inMemZone);
+
+  if (inMemZone[0].watsonImageClass === 'Healthy') {
+      console.log ('No immediate watering needed for zone since grass is healthy in Zone Number: ' + zoneNumber);
+      // pretend it is already watered
+      inMemZone.zoneStatus = "AW";
+      //This lawn zone can probably tolerate a week before rewatering. Set a projected watering date at least a week from now,
+      //but base it on the weather forecast (PoP) and on the city allowed watering day.
+      nextWaterDateTimeEpoch = (nowDateTimeAsEpoch) + 7*24*3600;
+      //if there is a good probability of rain (PoP>= 40) in the next 5 days, extend epoch time by 5 more days!
+      if (goodChanceOfRainNext5days()){
+        nextWaterDateTimeEpoch = nextWaterDateTimeEpoch + 5*24*3600;
+      }
+      
+      nextWaterDay = moment.unix(nextWaterDateTimeEpoch).format('dddd MMMM Do YYYY, h:mm:ss a').substring(0,3);
+      console.log("initial nextWaterDay1week for zone is: ", nextWaterDay);
+      console.log("dayIndex(nextWaterDay) and wDay1index are: ", dayIndex(nextWaterDay), " , ", wDay1index);
+      if (dayIndex(nextWaterDay) < wDay1index) {
+        // wait for the next legal watering day
+        var dayDifferencePos = wDay1index - dayIndex(nextWaterDay);
+        //Reset hours and minutes to starttime //
+        //... //
+        console.log("dayDifferencePos is: ", dayDifferencePos);
+        nextWaterDateTimeEpoch = Math.round(nextWaterDateTimeEpoch + dayDifferencePos*24*3600);
+      } else {
+        // move up the watering to wDay1index
+        var dayDifferenceNeg = dayIndex(nextWaterDay) - wDay1index;
+        //Reset hours and minutes to starttime //
+        //... //
+        console.log("dayDifferenceNeg is: ", dayDifferenceNeg);
+        nextWaterDateTimeEpoch = Math.round(nextWaterDateTimeEpoch - dayDifferenceNeg*24*3600);
+      }
+      inMemZone.projectedNextWaterDateTime = nextWaterDateTimeEpoch;
+      console.log("Setting zoneStatus and projectedNextWaterDateTime with these values: ", inMemZone.zoneStatus, " , ", inMemZone.projectedNextWaterDateTime );
+      db.WateringZone.update({"zoneNumber": zoneNumber}, {$set: {"zoneStatus": "AW", "projectedNextWaterDateTime": nextWaterDateTimeEpoch}}, function(err, raw){
+        if (err) { console.log("database call to set zoneStatus failed with error:", err)}
+        else {console.log ("database call to set zoneStatus, for zone: ", zoneNumber, " and projectedNextWaterDateTime succeeded with raw = ", raw)}
+      });
+  }
+  else { if (inMemZone[0].watsonImageClass === "Sick"){
+         console.log ("Immediate watering is needed for zone: ", zoneNumber, " if there is no rain in forecast!");
+
+         inMemZone.zoneStatus = "NW";
+
+         if (curDay < wDay1index) { //straightforward. The next watering day is the same as wDay1
+
+          nextWaterDateTimeEpoch = todayAtZeroTimeEpoch + 24*60*60*(wDay1index-curDay);
+          } else {
+            if (curDay > wDay1index) {
+              // schedule for next week Day1 Start1
+              nextWateringDateEpoch = todayAtZeroTimeEpoch + 24*60*60*(wDayindex+7-curDay);
+            }
+            else {  // Today is the watering day. Code any sprinkler program changes if they haven't alreay run
+              nextWateringDateEpoch = todayAtZeroTimeEpoch;
+            }
+          }
+
+          //check the rain forecast to see if there is impending rain in the next 48 hours and if there is,
+          //postpone watering by a week
+          const rainChancesAgain = tenDayPop.slice(0,5);
+          console.log("In computeNextWaterDateTime; rainChancesAgain = ", rainChancesAgain);
+          if ((JSON.parse(rainChancesAgain[0].pop) >= 40) || (JSON.parse(rainChancesAgain[0].pop) >= 40)){
+            nextWateringDateEpoch = nextWateringDateEpoch + 7*24*60*60;
+          }
+          console.log("nextWaterDateTimeEpoch for zone: ", zoneNumber, " that has been calculated is: ", nextWaterDateTimeEpoch);
+          inMemZone.projectedNextWaterDateTime = nextWaterDateTimeEpoch;
+          db.WateringZone.update({"zoneNumber": zoneNumber}, {$set: {"zoneStatus": "NW", "projectedNextWaterDateTime": nextWaterDateTimeEpoch}}, function(err, raw){
+            if (err) { console.log("database call to set zoneStatus failed with error:", err)}
+            else {console.log ("database call to set zoneStatus, for zone: ", zoneNumber, " and projectedNextWaterDateTime succeeded with raw = ", raw)}
+          });
+      }
+    }
+  }
+
+function updateWateringZoneDB(zoneNumber){
+  db.WateringZone
+   .find({"zoneNumber": zoneNumber}, function(err, inMemZone) {
+    if (!err){ 
+      console.log("In generateRecoController.js/updateWateringZoneDB");
+      console.log("zoneNumber: ", zoneNumber, " inMemZone: ", inMemZone); 
+      computeNextWaterDateTime(zoneNumber,inMemZone);
+      console.log("zone ", zoneNumber, " should now be updated with the nextWaterDateTime!");
+    } else {throw err;}
+    })
+}
+
+module.exports = {
+  generateZoneRecos: function(req, res) {
+    console.log("In controller/generateRecoController - READY TO DO GREAT THINGS!");
+
+    // getForecasted10DayPoP(tenDayPop)
+    // .then (function () {
+    //   getCityWateringRestrictions(cityWateringRestrictions);
+    // }
+    // .then (function () {
+    //     for (let index = 1; index < 7; index++) {
+    //       updateWateringZoneDB(index);
+    //     }
+    //   }
+    // ))
+
+
+    getForecasted10DayPoP();
+    getCityWateringRestrictions();
+    for (let index = 1; index < 7; index++) {
+      updateWateringZoneDB(index);
+    }
+  }
+};

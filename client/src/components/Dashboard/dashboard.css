@@ -1,0 +1,42 @@
+.dashboard__header {
+	text-align: center;
+	padding: 5rem;
+	font-size: 3rem;
+}
+
+.dashboard__btn {
+	display: flex;
+	justify-content: space-around;
+	margin-bottom: 3rem;
+}
+
+table {
+	margin: 0 auto;
+	margin-bottom: 5rem;
+	min-width: 90%;
+}
+
+th {
+	border: solid 1px #000;
+	background: rgba(11, 112, 78, 0.87);
+	color: #fff;
+}
+
+tr:nth-child(even) {
+    background-color: #f2f2f2
+}
+
+td {
+	border: solid 1px #000;
+	text-align: center;
+	vertical-align: center;
+}
+
+td img {
+	margin-top: 1rem;
+}
+
+.dashboard__forecast,
+.dashboard__restriction {
+	border-top: solid 2px #000;
+}

@@ -1,0 +1,17 @@
+.nav-wrapper {
+	display: flex;
+	background: rgba(15, 68, 50, 0.99);
+	justify-content: space-between;
+	padding: .5rem .25rem;
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	z-index: 15;
+}
+
+.nav-wrapper a,
+.nav-wrapper a:visited {
+	text-decoration: none;
+	color: white;
+}
